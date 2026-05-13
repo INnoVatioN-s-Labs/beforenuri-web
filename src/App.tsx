@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { Client, type IMessage } from '@stomp/stompjs';
 
 // types
 type Message = {
@@ -8,39 +8,69 @@ type Message = {
   msg: string;
 };
 
+type ChatSocketMessageResponse = {
+  type: string;
+  messageId: string;
+  roomId: number;
+  senderName: string;
+  content: string;
+  createdAt: string;
+};
+
+type ChatMessageResponse = {
+  id: string;
+  roomId: number;
+  senderName: string;
+  messageType: string;
+  content: string;
+  createdAt: string;
+};
+
+type AnonymousSessionResponse = {
+  sessionToken: string;
+  displayName: string;
+};
+
+const toUiMessage = (m: ChatSocketMessageResponse | ChatMessageResponse): Message => {
+  const messageType = 'messageType' in m ? m.messageType : m.type;
+  const senderName = m.senderName;
+  const content = m.content;
+  if (messageType === 'SYSOP') {
+    return { type: 'sysop', msg: content };
+  }
+  if (messageType === 'SYSTEM') {
+    return { type: 'system', msg: content };
+  }
+  return { type: 'chat', id: senderName, msg: content };
+};
+
 function App() {
   const [context, setContext] = useState<'main' | 'chat_menu' | 'chat'>('main');
   const [messages, setMessages] = useState<Message[]>([]);
   const [command, setCommand] = useState('');
   const [currentRoom, setCurrentRoom] = useState<number | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [senderName, setSenderName] = useState<string>('');
 
+  const stompClientRef = useRef<Client | null>(null);
+  const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
   const chatOutputRef = useRef<HTMLDivElement>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
 
+  // 익명 세션 발급
   useEffect(() => {
-    // 외부 기기에서도 접속 가능하도록 window.location.hostname 사용
-    const newSocket = io(`http://${window.location.hostname}:3000`);
-    setSocket(newSocket);
-
-    newSocket.on('room history', (history: Message[]) => {
-      setMessages(history);
-    });
-
-    newSocket.on('chat message', (data: { id: string; msg: string }) => {
-      setMessages((prev) => [...prev, { type: 'chat', id: data.id, msg: data.msg }]);
-    });
-
-    newSocket.on('system', (msg: string) => {
-      setMessages((prev) => [...prev, { type: 'system', msg }]);
-    });
-
-    newSocket.on('sysop', (msg: string) => {
-      setMessages((prev) => [...prev, { type: 'sysop', msg }]);
-    });
-
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/session/anonymous', { method: 'POST' });
+        if (!res.ok) throw new Error(`session failed: ${res.status}`);
+        const data: AnonymousSessionResponse = await res.json();
+        if (!cancelled) setSenderName(data.displayName);
+      } catch (err) {
+        console.error('익명 세션 발급 실패', err);
+      }
+    })();
     return () => {
-      newSocket.close();
+      cancelled = true;
     };
   }, []);
 
@@ -100,40 +130,114 @@ function App() {
         exitChatRoom();
         setContext('main');
       } else {
-        socket?.emit('chat message', cmd);
+        publishMessage(cmd);
       }
     }
   };
 
-  const enterChatRoom = (roomId: number) => {
+  const publishMessage = (content: string) => {
+    const client = stompClientRef.current;
+    if (!client || !client.connected || currentRoom === null) {
+      console.warn('STOMP 미연결 상태로 전송 불가');
+      return;
+    }
+    if (!senderName) {
+      alert('아직 닉네임을 받아오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    client.publish({
+      destination: `/app/rooms/${currentRoom}/messages`,
+      body: JSON.stringify({ senderName, content }),
+    });
+  };
+
+  const enterChatRoom = async (roomId: number) => {
     setCurrentRoom(roomId);
     setContext('chat');
     setMessages([]);
-    socket?.emit('join', `room_${roomId}`);
+
+    // 과거 메시지 불러오기
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/messages`);
+      if (res.ok) {
+        const history: ChatMessageResponse[] = await res.json();
+        setMessages(history.map(toUiMessage));
+      } else if (res.status === 404) {
+        setMessages([{ type: 'system', msg: '존재하지 않는 채팅방입니다.' }]);
+      }
+    } catch (err) {
+      console.error('과거 메시지 조회 실패', err);
+    }
+
+    // 기존 STOMP 연결 정리
+    await teardownStomp();
+
+    // STOMP 연결
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+    const client = new Client({
+      brokerURL: wsUrl,
+      reconnectDelay: 3000,
+      onConnect: () => {
+        subscriptionRef.current = client.subscribe(`/topic/rooms/${roomId}`, (frame: IMessage) => {
+          try {
+            const payload: ChatSocketMessageResponse = JSON.parse(frame.body);
+            setMessages((prev) => [...prev, toUiMessage(payload)]);
+          } catch (err) {
+            console.error('STOMP 메시지 파싱 실패', err);
+          }
+        });
+      },
+      onStompError: (frame) => {
+        console.error('STOMP 에러', frame.headers['message'], frame.body);
+      },
+    });
+    stompClientRef.current = client;
+    client.activate();
+  };
+
+  const teardownStomp = async () => {
+    if (subscriptionRef.current) {
+      try {
+        subscriptionRef.current.unsubscribe();
+      } catch {
+        // ignore
+      }
+      subscriptionRef.current = null;
+    }
+    if (stompClientRef.current) {
+      await stompClientRef.current.deactivate();
+      stompClientRef.current = null;
+    }
   };
 
   const exitChatRoom = () => {
     setCurrentRoom(null);
     setContext('chat_menu');
-    socket?.emit('leave');
+    void teardownStomp();
   };
+
+  useEffect(() => {
+    return () => {
+      void teardownStomp();
+    };
+  }, []);
 
   const playModemSound = () => {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    
+
     osc.type = 'square';
     osc.frequency.setValueAtTime(800, ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(2400, ctx.currentTime + 0.1);
     osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.3);
-    
+
     gain.gain.setValueAtTime(0.1, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
-    
+
     osc.connect(gain);
     gain.connect(ctx.destination);
-    
+
     osc.start();
     osc.stop(ctx.currentTime + 1.5);
   };
@@ -149,21 +253,21 @@ function App() {
   return (
     <div className="bg-black min-h-screen w-full flex justify-center font-mono text-[clamp(14px,2vw,16px)] text-[#f8f8f8] p-0 m-0">
       <div className="w-full max-w-[920px] min-h-screen p-5 box-border flex flex-col" style={{ background: 'linear-gradient(180deg, #000078 0%, #00005f 100%)' }}>
-        
+
         {/* Topbar */}
         <div className="grid grid-cols-[auto_1fr_auto] gap-2.5 border-b-2 border-[#000044] pb-2.5 mb-5 items-center">
           <div className="bg-[#f8f8f8] text-[#000078] px-2 py-0.5 font-bold"> NOW.NURI.NET </div>
           <div className="text-center text-[1.2em] font-bold">나우누리 (NOW NURI)</div>
           <div className="cursor-pointer">TOP</div>
         </div>
-        
+
         <div className="text-center mb-8">
           <span className="inline-block px-4 py-1 border border-[#f8f8f8] bg-[#f8f8f8] text-[#000078] font-bold">Communication</span>
         </div>
 
         {/* Panels */}
         <div className="flex flex-col flex-grow">
-          
+
           {/* Main Menu */}
           {context === 'main' && (
             <div className="flex flex-col flex-grow">
@@ -176,6 +280,12 @@ function App() {
               <div className="text-center text-[#9aa1ff] mb-5">
                 안녕하세요! 새로운 PC통신 시대에 오신 것을 환영합니다.<br />
                 대화실 접속을 원하시면 '14' 또는 'GO CHAT'을 입력해주세요.
+                {senderName && (
+                  <>
+                    <br />
+                    당신의 닉네임은 <span className="text-[#ffff66]">{senderName}</span> 입니다.
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -227,30 +337,30 @@ function App() {
 
         {/* Command Area */}
         <div className="flex flex-col sm:flex-row sm:items-end mt-5 gap-2.5">
-          <div className="text-[#9aa1ff] whitespace-nowrap" dangerouslySetInnerHTML={{ 
-            __html: context === 'main' ? `번호/명령(GO,T,ZAR,DRAG,X)<br>선택(H:도움말) &gt;&gt;` 
-                  : context === 'chat_menu' ? `대화방 선택(P:이전화면)<br>선택 &gt;&gt;` 
-                  : `대화입력(/나가기, X, P:이전)<br>선택(H:도움말) &gt;&gt;` 
+          <div className="text-[#9aa1ff] whitespace-nowrap" dangerouslySetInnerHTML={{
+            __html: context === 'main' ? `번호/명령(GO,T,ZAR,DRAG,X)<br>선택(H:도움말) &gt;&gt;`
+                  : context === 'chat_menu' ? `대화방 선택(P:이전화면)<br>선택 &gt;&gt;`
+                  : `대화입력(/나가기, X, P:이전)<br>선택(H:도움말) &gt;&gt;`
           }} />
-          <input 
+          <input
             ref={commandInputRef}
-            type="text" 
-            className="flex-grow bg-transparent border-none border-b border-[#9aa1ff] text-[#83ff9b] font-mono text-[18px] px-1 py-0.5 outline-none w-full sm:w-auto mt-2 sm:mt-0" 
-            autoComplete="off" 
-            autoFocus 
+            type="text"
+            className="flex-grow bg-transparent border-none border-b border-[#9aa1ff] text-[#83ff9b] font-mono text-[18px] px-1 py-0.5 outline-none w-full sm:w-auto mt-2 sm:mt-0"
+            autoComplete="off"
+            autoFocus
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={handleCommandSubmit}
           />
         </div>
-        
+
         {/* Tools */}
         <div className="mt-5 flex gap-2.5 justify-center">
           <button onClick={() => handleCommand('H')} className="border border-[#aeb5ff] bg-[#00005f] text-[#9aa1ff] font-mono px-4 py-1 cursor-pointer hover:text-[#ffff66]">도움말</button>
           <button onClick={playModemSound} className="border border-[#aeb5ff] bg-[#00005f] text-[#9aa1ff] font-mono px-4 py-1 cursor-pointer hover:text-[#ffff66]">모뎀 접속음 재생</button>
           <button onClick={clearScreen} className="border border-[#aeb5ff] bg-[#00005f] text-[#9aa1ff] font-mono px-4 py-1 cursor-pointer hover:text-[#ffff66]">초기화</button>
         </div>
-        
+
         <div className="mt-auto pt-5 text-center text-[#9aa1ff] text-[0.9em]">
           [H]도움말 [X]종료 [TOP]초기화면
         </div>
