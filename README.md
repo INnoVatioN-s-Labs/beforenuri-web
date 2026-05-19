@@ -14,7 +14,7 @@ npm run dev
 별도 서버를 쓰려면 `.env` 파일을 만들고 아래 값을 설정하면 됩니다.
 
 ```env
-VITE_SOCKET_URL=http://localhost:3000
+VITE_SOCKET_URL=http://16.176.210.28:8080
 ```
 
 샘플은 [.env.example](/Users/koyoungseok/Desktop/beforenuri/beforenuri-web/.env.example) 에 있습니다.
