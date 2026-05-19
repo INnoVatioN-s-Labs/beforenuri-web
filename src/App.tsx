@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Client, type IMessage } from '@stomp/stompjs';
+import { Client, type IFrame, type IMessage } from '@stomp/stompjs';
 
 // types
 type Message = {
@@ -44,6 +44,38 @@ const toUiMessage = (m: ChatSocketMessageResponse | ChatMessageResponse): Messag
   return { type: 'chat', id: senderName, msg: content };
 };
 
+function getBackendBaseUrl() {
+  const configuredUrl = import.meta.env.VITE_SOCKET_URL?.trim();
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/$/, '');
+  }
+
+  if (import.meta.env.DEV) {
+    return `http://${window.location.hostname}:8080`;
+  }
+
+  return window.location.origin;
+}
+
+function getApiUrl(path: string) {
+  return `${getBackendBaseUrl()}${path}`;
+}
+
+function getWebSocketUrl(path: string) {
+  const baseUrl = getBackendBaseUrl();
+
+  if (baseUrl.startsWith('https://')) {
+    return `wss://${baseUrl.slice('https://'.length)}${path}`;
+  }
+
+  if (baseUrl.startsWith('http://')) {
+    return `ws://${baseUrl.slice('http://'.length)}${path}`;
+  }
+
+  return `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${path}`;
+}
+
 function App() {
   const [context, setContext] = useState<'main' | 'chat_menu' | 'chat'>('main');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -61,7 +93,7 @@ function App() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/session/anonymous', { method: 'POST' });
+        const res = await fetch(getApiUrl('/api/session/anonymous'), { method: 'POST' });
         if (!res.ok) throw new Error(`session failed: ${res.status}`);
         const data: AnonymousSessionResponse = await res.json();
         if (!cancelled) setSenderName(data.displayName);
@@ -158,7 +190,7 @@ function App() {
 
     // 과거 메시지 불러오기
     try {
-      const res = await fetch(`/api/rooms/${roomId}/messages`);
+      const res = await fetch(getApiUrl(`/api/rooms/${roomId}/messages`));
       if (res.ok) {
         const history: ChatMessageResponse[] = await res.json();
         setMessages(history.map(toUiMessage));
@@ -173,7 +205,7 @@ function App() {
     await teardownStomp();
 
     // STOMP 연결
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+    const wsUrl = getWebSocketUrl('/ws');
     const client = new Client({
       brokerURL: wsUrl,
       reconnectDelay: 3000,
@@ -187,7 +219,7 @@ function App() {
           }
         });
       },
-      onStompError: (frame) => {
+      onStompError: (frame: IFrame) => {
         console.error('STOMP 에러', frame.headers['message'], frame.body);
       },
     });

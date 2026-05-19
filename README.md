@@ -1,73 +1,39 @@
-# React + TypeScript + Vite
+# beforenuri-web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Vite + React 기반 프론트엔드입니다.
 
-Currently, two official plugins are available:
+## 실행
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+개발 환경에서 소켓 서버 기본 주소는 `http://<현재호스트>:3000` 입니다.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+별도 서버를 쓰려면 `.env` 파일을 만들고 아래 값을 설정하면 됩니다.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```env
+VITE_SOCKET_URL=http://localhost:3000
 ```
+
+샘플은 [.env.example](/Users/koyoungseok/Desktop/beforenuri/beforenuri-web/.env.example) 에 있습니다.
+
+## 빌드
+
+```bash
+npm run build
+```
+
+빌드 결과물은 `dist/` 에 생성됩니다. 정적 호스팅 서비스에 `dist/` 를 그대로 배포할 수 있습니다.
+
+운영 환경에서 `VITE_SOCKET_URL` 을 지정하지 않으면 프론트가 배포된 현재 origin으로 소켓 연결을 시도합니다. 즉, 리버스 프록시로 같은 도메인 아래 백엔드를 붙이는 구성이 기본값입니다.
+
+## Docker 배포
+
+```bash
+docker build -t beforenuri-web .
+docker run --rm -p 8080:80 beforenuri-web
+```
+
+컨테이너는 Nginx로 정적 파일을 서빙합니다.
