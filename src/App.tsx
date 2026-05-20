@@ -55,6 +55,13 @@ function getBackendBaseUrl() {
     return `http://${window.location.hostname}:8080`;
   }
 
+  if (
+    window.location.hostname === 'beforenuri.cloud' ||
+    window.location.hostname === 'www.beforenuri.cloud'
+  ) {
+    return 'https://api.beforenuri.cloud';
+  }
+
   return window.location.origin;
 }
 
