@@ -90,6 +90,8 @@ function App() {
   const [currentRoom, setCurrentRoom] = useState<number | null>(null);
   const [senderName, setSenderName] = useState<string>('');
 
+  // 세션 토큰은 STOMP CONNECT 시점 클로저에서 최신값이 필요하므로 ref로도 보관한다.
+  const sessionTokenRef = useRef<string>('');
   const stompClientRef = useRef<Client | null>(null);
   const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
   const chatOutputRef = useRef<HTMLDivElement>(null);
@@ -103,7 +105,10 @@ function App() {
         const res = await fetch(getApiUrl('/api/session/anonymous'), { method: 'POST' });
         if (!res.ok) throw new Error(`session failed: ${res.status}`);
         const data: AnonymousSessionResponse = await res.json();
-        if (!cancelled) setSenderName(data.displayName);
+        if (!cancelled) {
+          setSenderName(data.displayName);
+          sessionTokenRef.current = data.sessionToken;
+        }
       } catch (err) {
         console.error('익명 세션 발급 실패', err);
       }
@@ -189,9 +194,10 @@ function App() {
       alert('아직 닉네임을 받아오지 못했습니다. 잠시 후 다시 시도해주세요.');
       return;
     }
+    // 발신자 이름은 서버가 세션 토큰으로 결정하므로 content만 전송한다.
     client.publish({
       destination: `/app/rooms/${currentRoom}/messages`,
-      body: JSON.stringify({ senderName, content }),
+      body: JSON.stringify({ content }),
     });
   };
 
@@ -220,6 +226,8 @@ function App() {
     const wsUrl = getWebSocketUrl('/ws');
     const client = new Client({
       brokerURL: wsUrl,
+      // 서버가 CONNECT 시점에 세션 토큰으로 발신자 신원을 고정한다.
+      connectHeaders: { sessionToken: sessionTokenRef.current },
       reconnectDelay: 3000,
       onConnect: () => {
         subscriptionRef.current = client.subscribe(`/topic/rooms/${roomId}`, (frame: IMessage) => {
