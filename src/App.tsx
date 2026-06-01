@@ -122,6 +122,11 @@ function App() {
   }, []);
 
   const handleCommandSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // 한글 IME 조합 중 발생한 Enter는 글자 확정용이므로 무시한다.
+    // 이를 거르지 않으면 조합 중이던 끝글자가 별도 메시지로 한 번 더 전송된다.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      return;
+    }
     if (e.key === 'Enter') {
       const cmd = command.trim();
       if (cmd) {
