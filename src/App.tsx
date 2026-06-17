@@ -5,6 +5,7 @@ import { InverseBadge } from '@/components/ui/inverse-badge';
 import { MainMenu } from '@/components/MainMenu';
 import { RoomList } from '@/components/RoomList';
 import { ChatRoom } from '@/components/ChatRoom';
+import { Arcade } from '@/components/Arcade';
 import { CommandArea, type ScreenContext } from '@/components/CommandArea';
 import { Tools } from '@/components/Tools';
 import { Footer } from '@/components/Footer';
@@ -12,6 +13,7 @@ import type { PanelKey } from '@/components/InfoPanel';
 import { useAnonymousSession } from '@/hooks/useAnonymousSession';
 import { useRooms } from '@/hooks/useRooms';
 import { useChatRoom } from '@/hooks/useChatRoom';
+import { useNumberGame } from '@/hooks/useNumberGame';
 import { playModemSound } from '@/lib/audio';
 
 function App() {
@@ -22,8 +24,9 @@ function App() {
 
   const { senderName, sessionTokenRef } = useAnonymousSession();
   const rooms = useRooms();
-  const { messages, currentRoom, occupantCount, enterRoom, exitRoom, publishMessage, clearMessages } =
+  const { messages, currentRoom, occupantCount, enterRoom, exitRoom, publishMessage, clearMessages, showOccupants } =
     useChatRoom(sessionTokenRef, senderName);
+  const game = useNumberGame();
 
   // Body 클릭 시 항상 입력창 포커스
   useEffect(() => {
@@ -55,10 +58,14 @@ function App() {
         setActivePanel('config');
       } else if (upperCmd === 'H') {
         setActivePanel('help');
+      } else if (upperCmd === '16' || upperCmd === 'DRAG') {
+        setActivePanel(null);
+        game.reset();
+        setContext('arcade');
       } else if (upperCmd === 'T' || upperCmd === 'TOP' || upperCmd === 'X') {
         setActivePanel(null);
       } else {
-        // 아직 구현되지 않은 메뉴(자유게시판/유머게시판/자료실/오락실 등)
+        // 아직 구현되지 않은 메뉴(자유게시판/유머게시판/자료실 등)
         setActivePanel('preparing');
       }
     } else if (context === 'chat_menu') {
@@ -81,8 +88,18 @@ function App() {
       } else if (upperCmd === 'T' || upperCmd === 'TOP') {
         exitRoom();
         setContext('main');
+      } else if (upperCmd === '/목록' || upperCmd === '/WHO' || upperCmd === '/W') {
+        void showOccupants();
       } else {
         publishMessage(cmd);
+      }
+    } else if (context === 'arcade') {
+      if (upperCmd === 'X' || upperCmd === 'P' || upperCmd === 'T' || upperCmd === 'TOP') {
+        setContext('main');
+      } else if (upperCmd === 'R') {
+        game.reset();
+      } else {
+        game.guess(cmd);
       }
     }
   };
@@ -116,6 +133,7 @@ function App() {
             occupantCount={occupantCount}
           />
         )}
+        {context === 'arcade' && <Arcade log={game.log} />}
       </div>
 
       <CommandArea

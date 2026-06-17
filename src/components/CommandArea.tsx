@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactNode, RefObject } from 'react';
 
-export type ScreenContext = 'main' | 'chat_menu' | 'chat';
+export type ScreenContext = 'main' | 'chat_menu' | 'chat' | 'arcade';
 
 const PROMPTS: Record<ScreenContext, ReactNode> = {
   main: (
@@ -19,9 +19,16 @@ const PROMPTS: Record<ScreenContext, ReactNode> = {
   ),
   chat: (
     <>
-      대화입력(/나가기, X, P:이전)
+      대화입력(/나가기, /목록, X, P:이전)
       <br />
       선택(H:도움말) &gt;&gt;
+    </>
+  ),
+  arcade: (
+    <>
+      숫자 입력 (R:다시, X:나가기)
+      <br />
+      선택 &gt;&gt;
     </>
   ),
 };

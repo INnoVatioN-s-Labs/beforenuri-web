@@ -102,11 +102,31 @@ export function useChatRoom(sessionTokenRef: RefObject<string>, senderName: stri
 
   const clearMessages = () => setMessages([]);
 
+  /** 현재 방 접속자 목록을 조회해 본인 화면에만 시스템 메시지로 표시한다. (/목록·/who) */
+  const showOccupants = async () => {
+    if (currentRoom === null) {
+      return;
+    }
+    try {
+      const res = await fetch(getApiUrl(`/api/rooms/${currentRoom}/occupants`));
+      if (!res.ok) {
+        return;
+      }
+      const names: string[] = await res.json();
+      const content = names.length
+        ? `현재 접속자 (${names.length}명): ${names.join(', ')}`
+        : '현재 접속자가 없습니다.';
+      setMessages((prev) => [...prev, { type: 'system', msg: content }]);
+    } catch (err) {
+      console.error('접속자 목록 조회 실패', err);
+    }
+  };
+
   useEffect(() => {
     return () => {
       void teardownStomp();
     };
   }, []);
 
-  return { messages, currentRoom, occupantCount, enterRoom, exitRoom, publishMessage, clearMessages };
+  return { messages, currentRoom, occupantCount, enterRoom, exitRoom, publishMessage, clearMessages, showOccupants };
 }
