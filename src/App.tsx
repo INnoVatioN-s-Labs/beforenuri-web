@@ -36,6 +36,7 @@ function App() {
 
   const enterChatRoom = (roomId: number) => {
     setContext('chat');
+    playModemSound(); // 입장 시 모뎀 접속음 연출
     void enterRoom(roomId);
   };
 
@@ -107,7 +108,9 @@ function App() {
           <MainMenu senderName={senderName} activePanel={activePanel} onSelect={handleCommand} />
         )}
         {context === 'chat_menu' && <RoomList rooms={rooms} onEnter={enterChatRoom} />}
-        {context === 'chat' && <ChatRoom roomId={currentRoom} messages={messages} />}
+        {context === 'chat' && (
+          <ChatRoom key={currentRoom} roomId={currentRoom} messages={messages} />
+        )}
       </div>
 
       <CommandArea

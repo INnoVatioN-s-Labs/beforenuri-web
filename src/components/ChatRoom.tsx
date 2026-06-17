@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Panel } from '@/components/ui/panel';
+import { ConnectSequence } from '@/components/ConnectSequence';
 import type { Message } from '@/types';
 
 type ChatRoomProps = {
@@ -24,6 +25,7 @@ export function ChatRoom({ roomId, messages }: ChatRoomProps) {
         ref={outputRef}
         className="mb-3 h-[400px] flex-grow overflow-y-auto whitespace-pre-wrap text-terminal-text"
       >
+        <ConnectSequence />
         {messages.map((m, i) => {
           if (m.type === 'chat') {
             return (
