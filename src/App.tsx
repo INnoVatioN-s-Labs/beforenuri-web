@@ -31,6 +31,15 @@ type AnonymousSessionResponse = {
   displayName: string;
 };
 
+type RoomResponse = {
+  id: number;
+  code: number;
+  title: string;
+  description: string;
+  category: string;
+  active: boolean;
+};
+
 const toUiMessage = (m: ChatSocketMessageResponse | ChatMessageResponse): Message => {
   const messageType = 'messageType' in m ? m.messageType : m.type;
   const senderName = m.senderName;
@@ -89,6 +98,7 @@ function App() {
   const [command, setCommand] = useState('');
   const [currentRoom, setCurrentRoom] = useState<number | null>(null);
   const [senderName, setSenderName] = useState<string>('');
+  const [rooms, setRooms] = useState<RoomResponse[]>([]);
 
   // 세션 토큰은 STOMP CONNECT 시점 클로저에서 최신값이 필요하므로 ref로도 보관한다.
   const sessionTokenRef = useRef<string>('');
@@ -111,6 +121,26 @@ function App() {
         }
       } catch (err) {
         console.error('익명 세션 발급 실패', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 대화실 목록 조회: 백엔드에 시드된 방을 분류별로 그려준다.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(getApiUrl('/api/rooms'));
+        if (!res.ok) throw new Error(`rooms failed: ${res.status}`);
+        const data: RoomResponse[] = await res.json();
+        if (!cancelled) {
+          setRooms(data);
+        }
+      } catch (err) {
+        console.error('채팅방 목록 조회 실패', err);
       }
     })();
     return () => {
@@ -165,9 +195,11 @@ function App() {
       if (upperCmd === 'P' || upperCmd === 'T' || upperCmd === 'TOP' || upperCmd === 'X') {
         setContext('main');
       } else {
-        const roomNum = parseInt(cmd);
-        if (!isNaN(roomNum)) {
-          enterChatRoom(roomNum);
+        // 사용자가 입력하는 번호는 화면에 보이는 code이므로, 실제 roomId(DB id)로 변환해 입장한다.
+        const roomCode = parseInt(cmd);
+        const room = rooms.find((r) => r.code === roomCode);
+        if (room) {
+          enterChatRoom(room.id);
         } else {
           alert('올바른 방 번호를 입력하세요.');
         }
@@ -302,6 +334,18 @@ function App() {
     }
   };
 
+  // 활성 방을 분류별로 묶는다. 분류 노출 순서는 백엔드가 내려준 등장 순서를 그대로 유지한다.
+  const roomCategories: { title: string; rooms: RoomResponse[] }[] = [];
+  for (const room of rooms) {
+    if (!room.active) continue;
+    let group = roomCategories.find((c) => c.title === room.category);
+    if (!group) {
+      group = { title: room.category, rooms: [] };
+      roomCategories.push(group);
+    }
+    group.rooms.push(room);
+  }
+
   return (
     <div className="bg-black min-h-screen w-full flex justify-center font-mono text-[clamp(14px,2vw,16px)] text-[#f8f8f8] p-0 m-0">
       <div className="w-full max-w-[920px] min-h-screen p-5 box-border flex flex-col" style={{ background: 'linear-gradient(180deg, #000078 0%, #00005f 100%)' }}>
@@ -346,24 +390,24 @@ function App() {
           {context === 'chat_menu' && (
             <div className="flex flex-col flex-grow">
               <h2 className="text-center text-[#ffff66] text-[1.2em] mt-0 mb-4">대화실 [분류]</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-                {[
-                  { title: '평범함이 좋아', items: ['1. 느낌있는 대화', '2. 자유로운 대화', '3. 초보자 대화실', '4. 타 자 방'] },
-                  { title: '지역별 대화실', items: ['21. 서울특별시', '22. 인천/경기/강원', '23. 대전/충청', '24. 광주/전라', '25. 대구/울산/경상', '26. 부산/제주'] },
-                  { title: '우리끼리 좋아', items: ['41. 초등학생 끼리끼리', '42. 중학생 모여라', '43. 고등학생 대화실', '44. 대학생 대화실', '45. 직장인의 휴식처', '46. 게임좋아하는 사람'] },
-                ].map(category => (
-                  <div key={category.title} className="border border-dashed border-white/40 p-3 flex flex-col">
-                    <div className="text-center mb-3 text-[1.1em] bg-[#f8f8f8] text-[#000078] font-bold py-0.5">{category.title}</div>
-                    <div className="flex flex-col gap-1">
-                      {category.items.map(item => (
-                        <div key={item} className="whitespace-nowrap">
-                          <button className="bg-transparent border-none text-[#f8f8f8] text-left cursor-pointer hover:text-[#ffff66] hover:underline" onClick={() => handleCommand(item.split('.')[0])}>{item}</button>
-                        </div>
-                      ))}
+              {rooms.length === 0 ? (
+                <div className="text-center text-[#9aa1ff] mt-3">대화실 목록을 불러오는 중...</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                  {roomCategories.map((category) => (
+                    <div key={category.title} className="border border-dashed border-white/40 p-3 flex flex-col">
+                      <div className="text-center mb-3 text-[1.1em] bg-[#f8f8f8] text-[#000078] font-bold py-0.5">{category.title}</div>
+                      <div className="flex flex-col gap-1">
+                        {category.rooms.map((room) => (
+                          <div key={room.id} className="whitespace-nowrap">
+                            <button className="bg-transparent border-none text-[#f8f8f8] text-left cursor-pointer hover:text-[#ffff66] hover:underline" onClick={() => enterChatRoom(room.id)}>{room.code}. {room.title}</button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
               <div className="text-[#aeb5ff] whitespace-nowrap overflow-hidden my-5 text-center">--------------------------------------------------------------------------------</div>
               <div className="text-center text-[#9aa1ff] mb-5">
                 원하시는 대화방 번호를 입력해주세요. (이전 화면으로 돌아가려면 P 입력)
