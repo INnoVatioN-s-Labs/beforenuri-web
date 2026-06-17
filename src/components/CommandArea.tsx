@@ -8,8 +8,7 @@ export type ScreenContext =
   | 'board'
   | 'post'
   | 'write'
-  | 'login'
-  | 'signup';
+  | 'auth';
 
 const PROMPTS: Record<ScreenContext, ReactNode> = {
   main: (
@@ -61,9 +60,8 @@ const PROMPTS: Record<ScreenContext, ReactNode> = {
       입력 &gt;&gt;
     </>
   ),
-  // login/signup 화면에서는 CommandArea를 렌더하지 않지만, 타입(Record) 충족을 위해 정의한다.
-  login: <>로그인 화면</>,
-  signup: <>회원가입 화면</>,
+  // auth는 단계별 프롬프트를 promptOverride로 주입하므로 여기 값은 폴백용이다.
+  auth: <>입력 &gt;&gt;</>,
 };
 
 type CommandAreaProps = {
@@ -72,10 +70,14 @@ type CommandAreaProps = {
   inputRef: RefObject<HTMLInputElement | null>;
   onChange: (value: string) => void;
   onSubmit: (cmd: string) => void;
+  /** 비밀번호 등 입력값을 가릴 때 true (input type=password) */
+  mask?: boolean;
+  /** context 기본 프롬프트 대신 표시할 동적 프롬프트(예: 로그인 단계별) */
+  promptOverride?: ReactNode;
 };
 
 /** 하단 명령어 입력 영역. */
-export function CommandArea({ context, command, inputRef, onChange, onSubmit }: CommandAreaProps) {
+export function CommandArea({ context, command, inputRef, onChange, onSubmit, mask, promptOverride }: CommandAreaProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     // 한글 IME 조합 중 발생한 Enter는 글자 확정용이므로 무시한다.
     // 이를 거르지 않으면 조합 중이던 끝글자가 별도 메시지로 한 번 더 전송된다.
@@ -93,10 +95,10 @@ export function CommandArea({ context, command, inputRef, onChange, onSubmit }: 
 
   return (
     <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-end">
-      <div className="whitespace-nowrap text-terminal-dim">{PROMPTS[context]}</div>
+      <div className="whitespace-nowrap text-terminal-dim">{promptOverride ?? PROMPTS[context]}</div>
       <input
         ref={inputRef}
-        type="text"
+        type={mask ? 'password' : 'text'}
         className="mt-2 w-full flex-grow border-b border-terminal-dim bg-transparent px-1 py-0.5 font-mono text-[18px] text-terminal-input outline-none sm:mt-0 sm:w-auto"
         autoComplete="off"
         autoFocus

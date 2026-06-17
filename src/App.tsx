@@ -9,8 +9,7 @@ import { Arcade } from '@/components/Arcade';
 import { BoardList } from '@/components/BoardList';
 import { PostView } from '@/components/PostView';
 import { PostWrite } from '@/components/PostWrite';
-import { LoginForm } from '@/components/LoginForm';
-import { SignupForm } from '@/components/SignupForm';
+import { AuthScreen, type AuthMode, type AuthStage } from '@/components/AuthScreen';
 import { CommandArea, type ScreenContext } from '@/components/CommandArea';
 import { Tools } from '@/components/Tools';
 import { Footer } from '@/components/Footer';
@@ -27,6 +26,13 @@ function App() {
   const [context, setContext] = useState<ScreenContext>('main');
   const [command, setCommand] = useState('');
   const [activePanel, setActivePanel] = useState<PanelKey | null>(null);
+  const [authFlow, setAuthFlow] = useState<{
+    mode: AuthMode;
+    stage: AuthStage;
+    username: string;
+    password: string;
+  } | null>(null);
+  const [authError, setAuthError] = useState('');
   const commandInputRef = useRef<HTMLInputElement>(null);
 
   const { senderName, isMember, sessionTokenRef, applyMemberSession, logoutToAnonymous } = useSession();
@@ -46,20 +52,47 @@ function App() {
     return () => document.body.removeEventListener('click', handleBodyClick);
   }, []);
 
-  const handleLogin = async (username: string, password: string) => {
-    const result = await auth.login(username, password);
-    if (result.ok) {
+  // 로그인/회원가입 단계 입력 (게시판 글쓰기와 동일한 단일 입력창 단계 패턴, 비번 단계만 마스킹)
+  const handleAuthInput = async (input: string) => {
+    if (!authFlow) return;
+    const upper = input.toUpperCase();
+    if (upper === 'X' || upper === 'P') {
+      setAuthFlow(null);
+      setAuthError('');
       setContext('main');
+      return;
     }
-    return result;
-  };
+    setAuthError('');
 
-  const handleSignup = async (username: string, password: string, displayName: string) => {
-    const result = await auth.signup(username, password, displayName);
-    if (result.ok) {
-      setContext('main');
+    if (authFlow.stage === 'id') {
+      setAuthFlow({ ...authFlow, username: input, stage: 'pw' });
+      return;
     }
-    return result;
+    if (authFlow.stage === 'pw') {
+      if (authFlow.mode === 'login') {
+        const result = await auth.login(authFlow.username, input);
+        if (result.ok) {
+          setAuthFlow(null);
+          setContext('main');
+        } else {
+          setAuthError(result.message ?? '로그인에 실패했습니다.');
+          setAuthFlow({ ...authFlow, stage: 'id', username: '', password: '' });
+        }
+      } else {
+        setAuthFlow({ ...authFlow, password: input, stage: 'nick' });
+      }
+      return;
+    }
+    if (authFlow.stage === 'nick') {
+      const result = await auth.signup(authFlow.username, authFlow.password, input);
+      if (result.ok) {
+        setAuthFlow(null);
+        setContext('main');
+      } else {
+        setAuthError(result.message ?? '회원가입에 실패했습니다.');
+        setAuthFlow({ ...authFlow, stage: 'id', username: '', password: '' });
+      }
+    }
   };
 
   const enterChatRoom = (roomId: number) => {
@@ -85,10 +118,14 @@ function App() {
         setActivePanel('help');
       } else if (upperCmd === 'LOGIN' || upperCmd === 'GO LOGIN') {
         setActivePanel(null);
-        setContext('login');
+        setAuthError('');
+        setAuthFlow({ mode: 'login', stage: 'id', username: '', password: '' });
+        setContext('auth');
       } else if (upperCmd === 'JOIN' || upperCmd === 'GO JOIN') {
         setActivePanel(null);
-        setContext('signup');
+        setAuthError('');
+        setAuthFlow({ mode: 'signup', stage: 'id', username: '', password: '' });
+        setContext('auth');
       } else if (upperCmd === 'LOGOUT') {
         setActivePanel(null);
         void logoutToAnonymous();
@@ -172,6 +209,8 @@ function App() {
           setContext('board');
         }
       });
+    } else if (context === 'auth') {
+      void handleAuthInput(cmd);
     }
   };
 
@@ -210,27 +249,34 @@ function App() {
         {context === 'write' && (
           <PostWrite stage={board.write.stage} title={board.write.title} isReply={board.write.parentId !== null} />
         )}
-        {context === 'login' && (
-          <LoginForm
-            onLogin={handleLogin}
-            onGoSignup={() => setContext('signup')}
-            onCancel={() => setContext('main')}
+        {context === 'auth' && authFlow && (
+          <AuthScreen
+            mode={authFlow.mode}
+            stage={authFlow.stage}
+            username={authFlow.username}
+            error={authError}
           />
-        )}
-        {context === 'signup' && (
-          <SignupForm onSignup={handleSignup} onCancel={() => setContext('main')} />
         )}
       </div>
 
-      {context !== 'login' && context !== 'signup' && (
-        <CommandArea
-          context={context}
-          command={command}
-          inputRef={commandInputRef}
-          onChange={setCommand}
-          onSubmit={handleCommand}
-        />
-      )}
+      <CommandArea
+        context={context}
+        command={command}
+        inputRef={commandInputRef}
+        onChange={setCommand}
+        onSubmit={handleCommand}
+        mask={context === 'auth' && authFlow?.stage === 'pw'}
+        promptOverride={
+          context === 'auth' && authFlow ? (
+            <>
+              {authFlow.mode === 'login' ? '[로그인]' : '[회원가입]'}{' '}
+              {authFlow.stage === 'id' ? '아이디' : authFlow.stage === 'pw' ? '비밀번호' : '닉네임'} 입력 (X:취소)
+              <br />
+              {authFlow.stage === 'id' ? '아이디' : authFlow.stage === 'pw' ? '비밀번호' : '닉네임'} &gt;&gt;
+            </>
+          ) : undefined
+        }
+      />
 
       <Tools onHelp={() => handleCommand('H')} onModemSound={playModemSound} onClear={clearScreen} />
 
