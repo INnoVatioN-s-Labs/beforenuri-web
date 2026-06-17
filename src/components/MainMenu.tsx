@@ -10,12 +10,13 @@ const MENU_ITEMS = [
 
 type MainMenuProps = {
   senderName: string;
+  isMember: boolean;
   activePanel: PanelKey | null;
   onSelect: (code: string) => void;
 };
 
 /** 초기 메인 메뉴 화면. */
-export function MainMenu({ senderName, activePanel, onSelect }: MainMenuProps) {
+export function MainMenu({ senderName, isMember, activePanel, onSelect }: MainMenuProps) {
   return (
     <div className="flex flex-grow flex-col">
       <div className="mx-auto grid w-full grid-cols-2 gap-x-8 gap-y-4 text-[clamp(17px,3vw,22px)] sm:w-[680px] sm:grid-cols-3">
@@ -32,7 +33,16 @@ export function MainMenu({ senderName, activePanel, onSelect }: MainMenuProps) {
         {senderName && (
           <>
             <br />
-            당신의 닉네임은 <span className="text-terminal-accent">{senderName}</span> 입니다.
+            {isMember ? (
+              <>
+                <span className="text-terminal-accent">{senderName}</span> 님으로 로그인했습니다. (LOGOUT: 로그아웃)
+              </>
+            ) : (
+              <>
+                당신의 닉네임은 <span className="text-terminal-accent">{senderName}</span> 입니다.
+                {' '}(LOGIN: 로그인 / JOIN: 회원가입)
+              </>
+            )}
           </>
         )}
       </div>

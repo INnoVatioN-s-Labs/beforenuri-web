@@ -33,6 +33,13 @@ export type AnonymousSessionResponse = {
   displayName: string;
 };
 
+// 회원 인증 토큰 응답 (로그인/갱신)
+export type AuthTokenResponse = {
+  accessToken: string;
+  refreshToken: string;
+  displayName: string;
+};
+
 // 채팅방 메타데이터
 export type RoomResponse = {
   id: number;

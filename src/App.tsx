@@ -9,11 +9,14 @@ import { Arcade } from '@/components/Arcade';
 import { BoardList } from '@/components/BoardList';
 import { PostView } from '@/components/PostView';
 import { PostWrite } from '@/components/PostWrite';
+import { LoginForm } from '@/components/LoginForm';
+import { SignupForm } from '@/components/SignupForm';
 import { CommandArea, type ScreenContext } from '@/components/CommandArea';
 import { Tools } from '@/components/Tools';
 import { Footer } from '@/components/Footer';
 import type { PanelKey } from '@/components/InfoPanel';
-import { useAnonymousSession } from '@/hooks/useAnonymousSession';
+import { useSession } from '@/hooks/useSession';
+import { useAuth } from '@/hooks/useAuth';
 import { useRooms } from '@/hooks/useRooms';
 import { useChatRoom } from '@/hooks/useChatRoom';
 import { useNumberGame } from '@/hooks/useNumberGame';
@@ -26,7 +29,8 @@ function App() {
   const [activePanel, setActivePanel] = useState<PanelKey | null>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
 
-  const { senderName, sessionTokenRef } = useAnonymousSession();
+  const { senderName, isMember, sessionTokenRef, applyMemberSession, logoutToAnonymous } = useSession();
+  const auth = useAuth(applyMemberSession);
   const rooms = useRooms();
   const { messages, currentRoom, occupantCount, enterRoom, exitRoom, publishMessage, clearMessages, showOccupants } =
     useChatRoom(sessionTokenRef, senderName);
@@ -41,6 +45,22 @@ function App() {
     document.body.addEventListener('click', handleBodyClick);
     return () => document.body.removeEventListener('click', handleBodyClick);
   }, []);
+
+  const handleLogin = async (username: string, password: string) => {
+    const result = await auth.login(username, password);
+    if (result.ok) {
+      setContext('main');
+    }
+    return result;
+  };
+
+  const handleSignup = async (username: string, password: string, displayName: string) => {
+    const result = await auth.signup(username, password, displayName);
+    if (result.ok) {
+      setContext('main');
+    }
+    return result;
+  };
 
   const enterChatRoom = (roomId: number) => {
     setContext('chat');
@@ -63,6 +83,15 @@ function App() {
         setActivePanel('config');
       } else if (upperCmd === 'H') {
         setActivePanel('help');
+      } else if (upperCmd === 'LOGIN' || upperCmd === 'GO LOGIN') {
+        setActivePanel(null);
+        setContext('login');
+      } else if (upperCmd === 'JOIN' || upperCmd === 'GO JOIN') {
+        setActivePanel(null);
+        setContext('signup');
+      } else if (upperCmd === 'LOGOUT') {
+        setActivePanel(null);
+        void logoutToAnonymous();
       } else if (upperCmd === '11' || upperCmd === 'GO FREE') {
         setActivePanel(null);
         void board.fetchPosts();
@@ -164,7 +193,7 @@ function App() {
 
       <div className="flex flex-grow flex-col">
         {context === 'main' && (
-          <MainMenu senderName={senderName} activePanel={activePanel} onSelect={handleCommand} />
+          <MainMenu senderName={senderName} isMember={isMember} activePanel={activePanel} onSelect={handleCommand} />
         )}
         {context === 'chat_menu' && <RoomList rooms={rooms} onEnter={enterChatRoom} />}
         {context === 'chat' && (
@@ -181,15 +210,27 @@ function App() {
         {context === 'write' && (
           <PostWrite stage={board.write.stage} title={board.write.title} isReply={board.write.parentId !== null} />
         )}
+        {context === 'login' && (
+          <LoginForm
+            onLogin={handleLogin}
+            onGoSignup={() => setContext('signup')}
+            onCancel={() => setContext('main')}
+          />
+        )}
+        {context === 'signup' && (
+          <SignupForm onSignup={handleSignup} onCancel={() => setContext('main')} />
+        )}
       </div>
 
-      <CommandArea
-        context={context}
-        command={command}
-        inputRef={commandInputRef}
-        onChange={setCommand}
-        onSubmit={handleCommand}
-      />
+      {context !== 'login' && context !== 'signup' && (
+        <CommandArea
+          context={context}
+          command={command}
+          inputRef={commandInputRef}
+          onChange={setCommand}
+          onSubmit={handleCommand}
+        />
+      )}
 
       <Tools onHelp={() => handleCommand('H')} onModemSound={playModemSound} onClear={clearScreen} />
 

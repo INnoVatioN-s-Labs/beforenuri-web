@@ -1,6 +1,15 @@
 import type { KeyboardEvent, ReactNode, RefObject } from 'react';
 
-export type ScreenContext = 'main' | 'chat_menu' | 'chat' | 'arcade' | 'board' | 'post' | 'write';
+export type ScreenContext =
+  | 'main'
+  | 'chat_menu'
+  | 'chat'
+  | 'arcade'
+  | 'board'
+  | 'post'
+  | 'write'
+  | 'login'
+  | 'signup';
 
 const PROMPTS: Record<ScreenContext, ReactNode> = {
   main: (
@@ -52,6 +61,9 @@ const PROMPTS: Record<ScreenContext, ReactNode> = {
       입력 &gt;&gt;
     </>
   ),
+  // login/signup 화면에서는 CommandArea를 렌더하지 않지만, 타입(Record) 충족을 위해 정의한다.
+  login: <>로그인 화면</>,
+  signup: <>회원가입 화면</>,
 };
 
 type CommandAreaProps = {
