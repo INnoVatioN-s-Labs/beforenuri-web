@@ -42,3 +42,23 @@ export type RoomResponse = {
   category: string;
   active: boolean;
 };
+
+// 자유게시판 목록 항목 (트리 평탄화)
+export type PostListItem = {
+  id: string;
+  parentId: string | null;
+  depth: number;
+  title: string;
+  authorName: string;
+  createdAt: string;
+};
+
+// 자유게시판 글 상세
+export type PostDetail = {
+  id: string;
+  parentId: string | null;
+  title: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+};

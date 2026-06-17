@@ -6,6 +6,9 @@ import { MainMenu } from '@/components/MainMenu';
 import { RoomList } from '@/components/RoomList';
 import { ChatRoom } from '@/components/ChatRoom';
 import { Arcade } from '@/components/Arcade';
+import { BoardList } from '@/components/BoardList';
+import { PostView } from '@/components/PostView';
+import { PostWrite } from '@/components/PostWrite';
 import { CommandArea, type ScreenContext } from '@/components/CommandArea';
 import { Tools } from '@/components/Tools';
 import { Footer } from '@/components/Footer';
@@ -14,6 +17,7 @@ import { useAnonymousSession } from '@/hooks/useAnonymousSession';
 import { useRooms } from '@/hooks/useRooms';
 import { useChatRoom } from '@/hooks/useChatRoom';
 import { useNumberGame } from '@/hooks/useNumberGame';
+import { useBoard } from '@/hooks/useBoard';
 import { playModemSound } from '@/lib/audio';
 
 function App() {
@@ -27,6 +31,7 @@ function App() {
   const { messages, currentRoom, occupantCount, enterRoom, exitRoom, publishMessage, clearMessages, showOccupants } =
     useChatRoom(sessionTokenRef, senderName);
   const game = useNumberGame();
+  const board = useBoard(sessionTokenRef);
 
   // Body 클릭 시 항상 입력창 포커스
   useEffect(() => {
@@ -58,6 +63,10 @@ function App() {
         setActivePanel('config');
       } else if (upperCmd === 'H') {
         setActivePanel('help');
+      } else if (upperCmd === '11' || upperCmd === 'GO FREE') {
+        setActivePanel(null);
+        void board.fetchPosts();
+        setContext('board');
       } else if (upperCmd === '16' || upperCmd === 'DRAG') {
         setActivePanel(null);
         game.reset();
@@ -101,6 +110,39 @@ function App() {
       } else {
         game.guess(cmd);
       }
+    } else if (context === 'board') {
+      if (upperCmd === 'P' || upperCmd === 'X' || upperCmd === 'T' || upperCmd === 'TOP') {
+        setContext('main');
+      } else if (upperCmd === 'K') {
+        board.startWrite(null);
+        setContext('write');
+      } else {
+        // 목록 평탄화 순번(1부터)으로 글 선택
+        const index = parseInt(cmd, 10);
+        if (!Number.isNaN(index) && index >= 1 && index <= board.posts.length) {
+          void board.openPost(board.posts[index - 1].id);
+          setContext('post');
+        } else {
+          alert('올바른 글 번호를 입력하세요.');
+        }
+      }
+    } else if (context === 'post') {
+      if (upperCmd === 'P' || upperCmd === 'X') {
+        setContext('board');
+      } else if (upperCmd === 'T' || upperCmd === 'TOP') {
+        setContext('main');
+      } else if (upperCmd === 'W' || cmd === '답글') {
+        if (board.currentPost) {
+          board.startWrite(board.currentPost.id);
+          setContext('write');
+        }
+      }
+    } else if (context === 'write') {
+      void board.submitWriteInput(cmd).then((result) => {
+        if (result === 'done') {
+          setContext('board');
+        }
+      });
     }
   };
 
@@ -134,6 +176,11 @@ function App() {
           />
         )}
         {context === 'arcade' && <Arcade log={game.log} />}
+        {context === 'board' && <BoardList posts={board.posts} />}
+        {context === 'post' && <PostView post={board.currentPost} />}
+        {context === 'write' && (
+          <PostWrite stage={board.write.stage} title={board.write.title} isReply={board.write.parentId !== null} />
+        )}
       </div>
 
       <CommandArea
