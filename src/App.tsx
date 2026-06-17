@@ -22,7 +22,7 @@ function App() {
 
   const { senderName, sessionTokenRef } = useAnonymousSession();
   const rooms = useRooms();
-  const { messages, currentRoom, enterRoom, exitRoom, publishMessage, clearMessages } =
+  const { messages, currentRoom, occupantCount, enterRoom, exitRoom, publishMessage, clearMessages } =
     useChatRoom(sessionTokenRef, senderName);
 
   // Body 클릭 시 항상 입력창 포커스
@@ -109,7 +109,12 @@ function App() {
         )}
         {context === 'chat_menu' && <RoomList rooms={rooms} onEnter={enterChatRoom} />}
         {context === 'chat' && (
-          <ChatRoom key={currentRoom} roomId={currentRoom} messages={messages} />
+          <ChatRoom
+            key={currentRoom}
+            roomId={currentRoom}
+            messages={messages}
+            occupantCount={occupantCount}
+          />
         )}
       </div>
 

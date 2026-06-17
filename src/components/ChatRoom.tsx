@@ -6,10 +6,11 @@ import type { Message } from '@/types';
 type ChatRoomProps = {
   roomId: number | null;
   messages: Message[];
+  occupantCount: number;
 };
 
 /** 대화실 화면. 새 메시지가 오면 하단으로 자동 스크롤한다. */
-export function ChatRoom({ roomId, messages }: ChatRoomProps) {
+export function ChatRoom({ roomId, messages, occupantCount }: ChatRoomProps) {
   const outputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,7 +21,10 @@ export function ChatRoom({ roomId, messages }: ChatRoomProps) {
 
   return (
     <Panel className="mt-4 flex flex-grow flex-col p-4">
-      <h2 className="mt-0 text-[1.2em] text-terminal-accent">{roomId}번 대화실</h2>
+      <h2 className="mt-0 text-[1.2em] text-terminal-accent">
+        {roomId}번 대화실
+        <span className="ml-2 text-[0.7em] text-terminal-dim">현재 접속: {occupantCount}명</span>
+      </h2>
       <div
         ref={outputRef}
         className="mb-3 h-[400px] flex-grow overflow-y-auto whitespace-pre-wrap text-terminal-text"

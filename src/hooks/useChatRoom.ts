@@ -11,6 +11,7 @@ import type { ChatMessageResponse, ChatSocketMessageResponse, Message } from '@/
 export function useChatRoom(sessionTokenRef: RefObject<string>, senderName: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentRoom, setCurrentRoom] = useState<number | null>(null);
+  const [occupantCount, setOccupantCount] = useState(0);
   const stompClientRef = useRef<Client | null>(null);
   const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
 
@@ -32,6 +33,7 @@ export function useChatRoom(sessionTokenRef: RefObject<string>, senderName: stri
   const enterRoom = async (roomId: number) => {
     setCurrentRoom(roomId);
     setMessages([]);
+    setOccupantCount(0);
 
     // 과거 메시지 불러오기
     try {
@@ -57,6 +59,10 @@ export function useChatRoom(sessionTokenRef: RefObject<string>, senderName: stri
         subscriptionRef.current = client.subscribe(`/topic/rooms/${roomId}`, (frame: IMessage) => {
           try {
             const payload: ChatSocketMessageResponse = JSON.parse(frame.body);
+            // 입장/퇴장 알림에는 현재 접속자 수가 실려온다.
+            if (typeof payload.occupantCount === 'number') {
+              setOccupantCount(payload.occupantCount);
+            }
             setMessages((prev) => [...prev, toUiMessage(payload)]);
           } catch (err) {
             console.error('STOMP 메시지 파싱 실패', err);
@@ -73,6 +79,7 @@ export function useChatRoom(sessionTokenRef: RefObject<string>, senderName: stri
 
   const exitRoom = () => {
     setCurrentRoom(null);
+    setOccupantCount(0);
     void teardownStomp();
   };
 
@@ -101,5 +108,5 @@ export function useChatRoom(sessionTokenRef: RefObject<string>, senderName: stri
     };
   }, []);
 
-  return { messages, currentRoom, enterRoom, exitRoom, publishMessage, clearMessages };
+  return { messages, currentRoom, occupantCount, enterRoom, exitRoom, publishMessage, clearMessages };
 }

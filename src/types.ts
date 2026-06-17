@@ -14,6 +14,7 @@ export type ChatSocketMessageResponse = {
   senderName: string;
   content: string;
   createdAt: string;
+  occupantCount?: number | null; // 입장/퇴장 알림에만 포함되는 현재 접속자 수
 };
 
 // REST로 조회하는 과거 메시지 payload
