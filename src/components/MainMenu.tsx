@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { InfoPanel, type PanelKey } from '@/components/InfoPanel';
 
 const MENU_ITEMS = [
   '1. 공지사항', '11. 자유게시판', '14. 대화실',
@@ -9,11 +10,12 @@ const MENU_ITEMS = [
 
 type MainMenuProps = {
   senderName: string;
+  activePanel: PanelKey | null;
   onSelect: (code: string) => void;
 };
 
 /** 초기 메인 메뉴 화면. */
-export function MainMenu({ senderName, onSelect }: MainMenuProps) {
+export function MainMenu({ senderName, activePanel, onSelect }: MainMenuProps) {
   return (
     <div className="flex flex-grow flex-col">
       <div className="mx-auto grid w-full grid-cols-2 gap-x-8 gap-y-4 text-[clamp(17px,3vw,22px)] sm:w-[680px] sm:grid-cols-3">
@@ -34,6 +36,7 @@ export function MainMenu({ senderName, onSelect }: MainMenuProps) {
           </>
         )}
       </div>
+      {activePanel && <InfoPanel panel={activePanel} />}
     </div>
   );
 }

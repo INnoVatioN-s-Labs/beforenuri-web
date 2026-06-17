@@ -8,6 +8,7 @@ import { ChatRoom } from '@/components/ChatRoom';
 import { CommandArea, type ScreenContext } from '@/components/CommandArea';
 import { Tools } from '@/components/Tools';
 import { Footer } from '@/components/Footer';
+import type { PanelKey } from '@/components/InfoPanel';
 import { useAnonymousSession } from '@/hooks/useAnonymousSession';
 import { useRooms } from '@/hooks/useRooms';
 import { useChatRoom } from '@/hooks/useChatRoom';
@@ -16,6 +17,7 @@ import { playModemSound } from '@/lib/audio';
 function App() {
   const [context, setContext] = useState<ScreenContext>('main');
   const [command, setCommand] = useState('');
+  const [activePanel, setActivePanel] = useState<PanelKey | null>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
 
   const { senderName, sessionTokenRef } = useAnonymousSession();
@@ -42,13 +44,21 @@ function App() {
 
     if (context === 'main') {
       if (upperCmd === '14' || upperCmd === 'GO CHAT') {
+        setActivePanel(null);
         setContext('chat_menu');
+      } else if (upperCmd === '1' || upperCmd === 'GO NOTICE') {
+        setActivePanel('notice');
+      } else if (upperCmd === '2') {
+        setActivePanel('sysop');
+      } else if (upperCmd === '3') {
+        setActivePanel('config');
       } else if (upperCmd === 'H') {
-        alert('도움말: 대화실에 입장하려면 14번을 누르거나 GO CHAT을 입력하세요.');
+        setActivePanel('help');
       } else if (upperCmd === 'T' || upperCmd === 'TOP' || upperCmd === 'X') {
-        alert('현재 초기 메뉴 화면입니다.');
+        setActivePanel(null);
       } else {
-        alert(`'${cmd}' - 현재 구현되지 않은 메뉴/명령어입니다.\n14번 대화실을 이용해주세요.`);
+        // 아직 구현되지 않은 메뉴(자유게시판/유머게시판/자료실/오락실 등)
+        setActivePanel('preparing');
       }
     } else if (context === 'chat_menu') {
       if (upperCmd === 'P' || upperCmd === 'T' || upperCmd === 'TOP' || upperCmd === 'X') {
@@ -93,7 +103,9 @@ function App() {
       </div>
 
       <div className="flex flex-grow flex-col">
-        {context === 'main' && <MainMenu senderName={senderName} onSelect={handleCommand} />}
+        {context === 'main' && (
+          <MainMenu senderName={senderName} activePanel={activePanel} onSelect={handleCommand} />
+        )}
         {context === 'chat_menu' && <RoomList rooms={rooms} onEnter={enterChatRoom} />}
         {context === 'chat' && <ChatRoom roomId={currentRoom} messages={messages} />}
       </div>

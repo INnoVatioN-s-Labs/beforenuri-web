@@ -28,6 +28,7 @@ export function ChatRoom({ roomId, messages }: ChatRoomProps) {
           if (m.type === 'chat') {
             return (
               <div key={i} className="text-terminal-text">
+                {m.time && <span className="text-terminal-dim">[{m.time}] </span>}
                 [{m.id}]: {m.msg}
               </div>
             );
